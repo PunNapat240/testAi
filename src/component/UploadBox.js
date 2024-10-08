@@ -94,15 +94,15 @@ const UploadBox = () => {
       caption !== "Please generate a caption for the uploaded image" &&
       caption !== "Image is not uploaded yet"
     ) {
+      
       setLoadingSimilar(true);
 
       const totalResults = number;
-      const allImages = [];
       let allFetchedResults = 0;
-      let resultsUsed = 0;
+      const imageSet = new Set();
   
       // ทำการเรียก API หลายครั้งเพื่อดึงภาพ
-      while (resultsUsed < totalResults) {
+      while (imageSet.size < totalResults) {
         try {
           const response = await fetch(
             `https://www.googleapis.com/customsearch/v1?key=${API_KEY}&cx=${SEARCH_ENGINE_ID}&q=${encodeURIComponent(caption)}&searchType=image&num=10&start=${allFetchedResults + 1}`
@@ -115,7 +115,7 @@ const UploadBox = () => {
             const images = data.items.map((item) => ({
               link: item.link, // URL ของรูปภาพ
               pageLink: item.image.contextLink, // URL ของหน้าเว็บที่มีรูปภาพ
-            }));
+            }));            
 
             // Check which images are valid and filter out the invalid ones
             const validImages = await Promise.all(
@@ -127,10 +127,18 @@ const UploadBox = () => {
 
             validImages.forEach((image) => {
               if (image.isValid) {
-                allImages.push(image);
-                resultsUsed++;
+                imageSet.add(image);
+                if (imageSet.size % 10 === 0 || imageSet.size === totalResults) {
+                  setSimilarImages(Array.from(imageSet).slice(0, imageSet.size));
+                  if (imageSet.size === totalResults) setLoadingSimilar(false);
+                }
               }
             });
+            
+            if (imageSet.size >= totalResults) {
+              setSimilarImages(Array.from(imageSet).slice(0, totalResults));
+              setLoadingSimilar(false);
+            }
 
           } else {
             throw new Error("Failed to fetch similar images");
@@ -142,9 +150,6 @@ const UploadBox = () => {
           return;
         }
       }
-      // ตัดภาพให้เหลือเพียงจำนวนที่ต้องการ
-      setSimilarImages(allImages.slice(0, totalResults));
-      setLoadingSimilar(false);
     } else {
       alert("Please generate a caption first.");
     }
@@ -171,8 +176,9 @@ const UploadBox = () => {
           <div className="textDescription">
             <h1>How to Generate Image to Text</h1>
             <h4> 1. Upload Picture</h4>
-            <h4> 2. Select how many similar image you want</h4>
-            <h4> 3. Press the Generate button</h4>
+            <h4> 2. Press the Generate button</h4>
+            <h4> 3. Select how many similar image you want</h4>
+            <h4> 4. Search for similar images with the generated caption</h4>
           </div>
           {/* จบกล่องคำอธิบาย */}
 
@@ -214,9 +220,8 @@ const UploadBox = () => {
       </div>
 
       {/* กล่องใส่รูปภาพใกล้เคียง */}
-      <h1 className="similar-text">Similar Image</h1>
+      <h1 className="similar-text">Similar Images</h1>
       <div className="similar-images-container">
-        {loadingSimilar && <div className="loading-similar">please wait...</div>}
         {similarImages.map((imageData, index) => (
           <div key={index} className="similar-image">
             {/* Wrap the image in an <a> tag to link to the page */}
@@ -234,6 +239,7 @@ const UploadBox = () => {
             <p>{imageData.link}</p>
           </div>
         ))}
+        {loadingSimilar && <div className="loading-similar">please wait...</div>}
       </div>
     </div>
   );
